@@ -15,9 +15,9 @@ import (
 	"github.com/google/gopacket/pcap"
 )
 
-const (
-	Number_of_simultaneous_workers = 15 //fine tune through testing (until the actual delay stabalizes and this measuring is not delaying it!)
-)
+// const (
+// 	Number_of_simultaneous_workers = 15 //fine tune through testing (until the actual delay stabalizes and this measuring is not delaying it!)
+// )
 
 var (
 	//upLink only
@@ -42,24 +42,22 @@ func GetValuesToBeReported_Chan() <-chan ToBeReported { //everytime they change 
 	return toBeReported_Chan
 }
 
-func StartPacketCapture(interface_name string, file_to_save_captured_packets string) {
-	go func() {
-		for {
-			err := GetQoSFlowMonitoringContent()
-			if err == nil {
-				fmt.Println(" SRR found in StartPacketCapture ")
-				SRRFound = true
-				go CapturePackets(interface_name, file_to_save_captured_packets)
-				break
-			} else {
-				fmt.Println("no SRR! error:", err)
-			}
-			time.Sleep(1 * time.Second)
+func StartPacketCapture(interface_name string) {
+	for {
+		err := GetQoSFlowMonitoringContent()
+		if err == nil {
+			fmt.Println(" Hi! I found an SRR, I am currently in capturing_packets.go inside StartPacketCapture ")
+			SRRFound = true
+			CapturePackets(interface_name)
+			break
+		} else {
+			fmt.Println("no SRR yet:", err)
 		}
-	}()
+		time.Sleep(1 * time.Second)
+	}
 }
 
-func CapturePackets(interface_name string, file_to_save_captured_packets string) {
+func CapturePackets(interface_name string) {
 
 	handle, err := pcap.OpenLive(interface_name, 2048, true, pcap.BlockForever)
 	if err != nil {
@@ -78,48 +76,20 @@ func CapturePackets(interface_name string, file_to_save_captured_packets string)
 
 	fmt.Println("--ahmad implemented -- started capturing packets on:", interface_name)
 
-	packetQueue := make(chan gopacket.Packet, 1000)
-	stopChan := make(chan struct{})
-	var wg sync.WaitGroup
+	fmt.Println("--ahmad implemented -- started capturing packets on:", interface_name)
 
-	for i := 0; i < Number_of_simultaneous_workers; i++ {
-		wg.Add(1)
-		go worker(packetQueue, stopChan, &wg)
-	}
-
-	go func() {
-		<-signalChannel
-		close(stopChan)
-	}()
-
-	for packet := range packetSource.Packets() {
-		select {
-		case packetQueue <- packet:
-		case <-stopChan:
-			close(packetQueue)
-			wg.Wait()
-			return
-		}
-	}
-}
-
-func worker(packetQueue <-chan gopacket.Packet, stopChan <-chan struct{}, wg *sync.WaitGroup) {
-	defer wg.Done()
 	for {
 		select {
-		case packet, ok := <-packetQueue:
-			if !ok {
-				return
-			}
+		case packet := <-packetSource.Packets():
 			processPacket(packet)
-		case <-stopChan:
+		case <-signalChannel:
+			fmt.Println("received interrupt signal, stopping packet capture.")
 			return
 		}
 	}
 }
-
 func processPacket(packet gopacket.Packet) {
-	fmt.Println("eneted process packet")
+	fmt.Println("entered the method: process packet")
 	var outerIPv4, innerIPv4 *layers.IPv4
 	var gtpLayer *layers.GTPv1U
 
