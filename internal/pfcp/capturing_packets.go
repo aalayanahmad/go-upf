@@ -15,12 +15,12 @@ import (
 	"github.com/google/gopacket/pcap"
 )
 
-const (
-	Number_of_simultaneous_workers = 15 //fine tune through testing (until the actual delay stabalizes and this measuring is not delaying it!)
-)
+// const (
+// 	Number_of_simultaneous_workers = 15 //fine tune through testing (until the actual delay stabalizes and this measuring is not delaying it!)
+// )
 
 var (
-	//upLink only
+	//upLink case only
 	Time_of_last_arrived_packet_per_UE_destination_combo = make(map[string]time.Time)
 	Start_time_per_UE_destination_combo                  = make(map[string]time.Time)
 	Latest_latency_measured_per_UE_destination_combo     = make(map[string]uint32)
@@ -33,10 +33,10 @@ type ToBeReported struct {
 	QFI                      uint8
 	QoSMonitoringMeasurement uint32
 	EventTimeStamp           time.Time //change to uint32 later NOT PRESSING
-	StartTime                time.Time //change to uint32
+	StartTime                time.Time //change to uint32 later NOT PRESSING
 }
 
-var toBeReported_Chan = make(chan ToBeReported, 1000) //buffer size
+var toBeReported_Chan = make(chan ToBeReported, 1000)
 
 func GetValuesToBeReported_Chan() <-chan ToBeReported { //everytime they change fill this report and buffer it to the channel
 	return toBeReported_Chan
@@ -80,12 +80,12 @@ func CapturePackets(interface_name string, file_to_save_captured_packets string)
 
 	packetQueue := make(chan gopacket.Packet, 1000)
 	stopChan := make(chan struct{})
-	var wg sync.WaitGroup
+	// var wg sync.WaitGroup
 
-	for i := 0; i < Number_of_simultaneous_workers; i++ {
-		wg.Add(1)
-		go worker(packetQueue, stopChan, &wg)
-	}
+	// for i := 0; i < Number_of_simultaneous_workers; i++ {
+	// 	wg.Add(1)
+	// 	go worker(packetQueue, stopChan, &wg)
+	// }
 
 	go func() {
 		<-signalChannel
@@ -97,26 +97,26 @@ func CapturePackets(interface_name string, file_to_save_captured_packets string)
 		case packetQueue <- packet:
 		case <-stopChan:
 			close(packetQueue)
-			wg.Wait()
+			// wg.Wait()
 			return
 		}
 	}
 }
 
-func worker(packetQueue <-chan gopacket.Packet, stopChan <-chan struct{}, wg *sync.WaitGroup) {
-	defer wg.Done()
-	for {
-		select {
-		case packet, ok := <-packetQueue:
-			if !ok {
-				return
-			}
-			processPacket(packet)
-		case <-stopChan:
-			return
-		}
-	}
-}
+// func worker(packetQueue <-chan gopacket.Packet, stopChan <-chan struct{}, wg *sync.WaitGroup) {
+// 	defer wg.Done()
+// 	for {
+// 		select {
+// 		case packet, ok := <-packetQueue:
+// 			if !ok {
+// 				return
+// 			}
+// 			processPacket(packet)
+// 		case <-stopChan:
+// 			return
+// 		}
+// 	}
+// }
 
 func processPacket(packet gopacket.Packet) {
 	fmt.Println("eneted process packet")

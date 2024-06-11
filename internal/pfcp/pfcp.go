@@ -79,20 +79,6 @@ func NewPfcpServer(cfg *factory.Config, driver forwarder.Driver) *PfcpServer {
 	}
 }
 
-func New_values_listener() {
-	go func() {
-		toFillTheReport_Chan := GetValuesToBeReported_Chan()
-		for new_value := range toFillTheReport_Chan {
-			mu.Lock()
-			qfi_value = new_value.QFI
-			monitoring_measurement = new_value.QoSMonitoringMeasurement
-			event_happened_at = new_value.EventTimeStamp
-			start_time = new_value.StartTime
-			mu.Unlock()
-		}
-	}()
-}
-
 func (s *PfcpServer) NewValuesListener(addr net.Addr, lSeid uint64) {
 	go func() {
 		toFillTheReport_Chan := GetValuesToBeReported_Chan()
