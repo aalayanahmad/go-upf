@@ -78,7 +78,7 @@ func CapturePackets(interface_name string, file_to_save_captured_packets string)
 
 	fmt.Println("--ahmad implemented -- started capturing packets on:", interface_name)
 
-	packetQueue := make(chan gopacket.Packet, 1000)
+	//packetQueue := make(chan gopacket.Packet, 1000)
 	stopChan := make(chan struct{})
 	// var wg sync.WaitGroup
 
@@ -94,11 +94,13 @@ func CapturePackets(interface_name string, file_to_save_captured_packets string)
 
 	for packet := range packetSource.Packets() {
 		select {
-		case packetQueue <- packet:
+		//case packetQueue <- packet:
 		case <-stopChan:
-			close(packetQueue)
+			//close(packetQueue)
 			// wg.Wait()
 			return
+		default:
+			processPacket(packet)
 		}
 	}
 }
