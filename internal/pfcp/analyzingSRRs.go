@@ -41,7 +41,7 @@ func GetQoSFlowMonitoringContent() error {
 		qfi := srrInfo.QFI
 		log.Println("qfi", qfi)
 		ReqQoSMonit := srrInfo.RequestedQoSMonitoring
-		log.Println("requestMont", ReqQoSMonit)
+		log.Println("requestMontik", ReqQoSMonit)
 		ReportingFrequency := srrInfo.ReportingFrequency
 		log.Println("ReportingFrequency", ReportingFrequency)
 		PacketDelayThresholds := srrInfo.PacketDelayThresholds
