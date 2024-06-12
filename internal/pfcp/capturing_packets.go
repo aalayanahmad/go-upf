@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	Number_of_simultaneous_workers = 1 //fine tune through testing (until the actual delay stabalizes and this measuring is not delaying it!)
+	Number_of_simultaneous_workers = 3 //fine tune through testing (until the actual delay stabalizes and this measuring is not delaying it!)
 )
 
 var (
@@ -38,7 +38,7 @@ type ToBeReported struct {
 	StartTime                time.Time //change to uint32
 }
 
-var toBeReported_Chan = make(chan ToBeReported, 600) //buffer size
+var toBeReported_Chan = make(chan ToBeReported, 1000) //buffer size
 
 func GetValuesToBeReported_Chan() <-chan ToBeReported { //everytime they change fill this report and buffer it to the channel
 	return toBeReported_Chan
@@ -87,7 +87,7 @@ func CapturePackets(interface_name string) {
 
 	fmt.Println("--ahmad implemented -- started capturing packets on:", interface_name)
 
-	packetQueue := make(chan gopacket.Packet, 600)
+	packetQueue := make(chan gopacket.Packet, 1000)
 	stopChan := make(chan struct{})
 	var wg sync.WaitGroup
 
