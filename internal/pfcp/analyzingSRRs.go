@@ -7,14 +7,16 @@ import (
 )
 
 // QoS flows are based on destination IPs in our case
-var QoSflow_RequestedMonitoring sync.Map
-var QoSflow_ReportedFrequency sync.Map
-var QoSflow_PacketDelayThresholds sync.Map
-var QoSflow_DownlinkPacketDelayThresholds sync.Map
-var QoSflow_UplinkPacketDelayThresholds sync.Map
-var QoSflow_RoundTripPacketDelayThresholds sync.Map
-var QoSflow_MinimumWaitTime sync.Map
-var QoSflow_MeasurementPeriod sync.Map
+var (
+	QoSflow_RequestedMonitoring            sync.Map
+	QoSflow_ReportedFrequency              sync.Map
+	QoSflow_PacketDelayThresholds          sync.Map
+	QoSflow_DownlinkPacketDelayThresholds  sync.Map
+	QoSflow_UplinkPacketDelayThresholds    sync.Map
+	QoSflow_RoundTripPacketDelayThresholds sync.Map
+	QoSflow_MinimumWaitTime                sync.Map
+	QoSflow_MeasurementPeriod              sync.Map
+)
 
 func GetSRRContent(srrID uint8) ([]*QoSControlInfo, error) {
 	//SrrMapLock.RLock()
