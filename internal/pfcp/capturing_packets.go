@@ -16,17 +16,16 @@ import (
 )
 
 const (
-	Number_of_simultaneous_workers = 2 //fine tune through testing (until the actual delay stabalizes and this measuring is not delaying it!)
+	Number_of_simultaneous_workers = 15 //fine tune through testing (until the actual delay stabalizes and this measuring is not delaying it!)
 )
 
 var (
-	//upLink case only
+	//upLink only
 	Time_of_last_arrived_packet_per_UE_destination_combo = make(map[string]time.Time)
 	Start_time_per_UE_destination_combo                  = make(map[string]time.Time)
 	Latest_latency_measured_per_UE_destination_combo     = make(map[string]uint32)
 	Time_of_last_issued_report_per_UE_destination_combo  = make(map[string]time.Time)
 	SRRFound                                             = false
-	Mu                                                   sync.Mutex
 	Mu1                                                  sync.Mutex
 )
 
@@ -34,10 +33,10 @@ type ToBeReported struct {
 	QFI                      uint8
 	QoSMonitoringMeasurement uint32
 	EventTimeStamp           time.Time //change to uint32 later NOT PRESSING
-	StartTime                time.Time //change to uint32 later NOT PRESSING
+	StartTime                time.Time //change to uint32
 }
 
-var toBeReported_Chan = make(chan ToBeReported, 1000)
+var toBeReported_Chan = make(chan ToBeReported, 1000) //buffer size
 
 func GetValuesToBeReported_Chan() <-chan ToBeReported { //everytime they change fill this report and buffer it to the channel
 	return toBeReported_Chan
@@ -91,7 +90,6 @@ func CapturePackets(interface_name string, file_to_save_captured_packets string)
 	go func() {
 		<-signalChannel
 		close(stopChan)
-		close(packetQueue)
 	}()
 
 	for packet := range packetSource.Packets() {
@@ -101,14 +99,10 @@ func CapturePackets(interface_name string, file_to_save_captured_packets string)
 			close(packetQueue)
 			wg.Wait()
 			return
-			// 	default:
-			// 		Mu.Lock()
-			// 		processPacket(packet)
-			// 		Mu.Unlock()
-			// 	}
 		}
 	}
 }
+
 func worker(packetQueue <-chan gopacket.Packet, stopChan <-chan struct{}, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for {
@@ -125,7 +119,7 @@ func worker(packetQueue <-chan gopacket.Packet, stopChan <-chan struct{}, wg *sy
 }
 
 func processPacket(packet gopacket.Packet) {
-	fmt.Println("Currently processing a packet!")
+	fmt.Println("eneted process packet")
 	var outerIPv4, innerIPv4 *layers.IPv4
 	var gtpLayer *layers.GTPv1U
 

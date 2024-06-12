@@ -19,8 +19,8 @@ var (
 )
 
 func GetSRRContent(srrID uint8) ([]*QoSControlInfo, error) {
-	//SrrMapLock.RLock()
-	//defer SrrMapLock.RUnlock()
+	SrrMapLock.RLock()
+	defer SrrMapLock.RUnlock()
 
 	srrInfos, exists := SotredSrrsToBeUsedByUpf[srrID]
 	if !exists {
