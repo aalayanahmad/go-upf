@@ -3,7 +3,6 @@ package pfcp
 import (
 	"fmt"
 	"net"
-	"sync"
 	"time"
 
 	"github.com/aalayanahmad/go-pfcp/ie"
@@ -59,7 +58,6 @@ type QoSControlInfo struct {
 
 var (
 	SotredSrrsToBeUsedByUpf = make(map[uint8][]*QoSControlInfo)
-	SrrMapLock              = sync.RWMutex{}
 )
 
 func (s *Sess) Close() []report.USAReport {
@@ -393,9 +391,7 @@ func (s *Sess) CreateSRR(req *ie.IE) error {
 		}
 	}
 
-	SrrMapLock.Lock()
 	SotredSrrsToBeUsedByUpf[id] = srrQoSControlInfos
-	SrrMapLock.Unlock()
 
 	s.SRRIDs[id] = srrQoSControlInfos
 	return nil

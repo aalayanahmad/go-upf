@@ -65,7 +65,7 @@ func action(cliCtx *cli.Context) error {
 		return err
 	}
 	//run packet capturing in a seperate goroutine
-	go pfcp.StartPacketCapture("any", "./capturedPackets.pcap")
+	go pfcp.StartPacketCapture("any")
 
 	upf.Start()
 	if err := upf.Run(); err != nil {

@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -27,6 +28,7 @@ var (
 	Time_of_last_issued_report_per_UE_destination_combo  = make(map[string]time.Time)
 	SRRFound                                             = false
 	Mu1                                                  sync.Mutex
+	m                                                    runtime.MemStats
 )
 
 type ToBeReported struct {
@@ -36,31 +38,38 @@ type ToBeReported struct {
 	StartTime                time.Time //change to uint32
 }
 
-var toBeReported_Chan = make(chan ToBeReported, 1000) //buffer size
+var toBeReported_Chan = make(chan ToBeReported, 600) //buffer size
 
 func GetValuesToBeReported_Chan() <-chan ToBeReported { //everytime they change fill this report and buffer it to the channel
 	return toBeReported_Chan
 }
 
-func StartPacketCapture(interface_name string, file_to_save_captured_packets string) {
+func StartPacketCapture(interface_name string) {
+	runtime.ReadMemStats(&m)
+	memBefore := m.Alloc
 	go func() {
 		for {
+			fmt.Println("I am in StartPacketCapture")
+			fmt.Printf("Memory usage before method execution: %v bytes\n", memBefore)
 			err := GetQoSFlowMonitoringContent()
 			if err == nil {
-				fmt.Println(" SRR found in StartPacketCapture ")
+				fmt.Println("I am inside StartPacketCapture and an SRR was found")
 				SRRFound = true
-				go CapturePackets(interface_name, file_to_save_captured_packets)
+				go CapturePackets(interface_name)
 				break
 			} else {
-				fmt.Println("no SRR! error:", err)
+				fmt.Println("I am inside StartPacketCapture and NO SRR was found yet: ", err)
 			}
-			time.Sleep(1 * time.Second)
+			runtime.ReadMemStats(&m)
+			memAfter := m.Alloc
+			fmt.Printf("Memory usage after method execution: %v bytes\n", memAfter)
+			time.Sleep(5 * time.Second)
 		}
 	}()
 }
 
-func CapturePackets(interface_name string, file_to_save_captured_packets string) {
-
+func CapturePackets(interface_name string) {
+	fmt.Println("I entered CapturePackets")
 	handle, err := pcap.OpenLive(interface_name, 2048, true, pcap.BlockForever)
 	if err != nil {
 		log.Fatal(err)
