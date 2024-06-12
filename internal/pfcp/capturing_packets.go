@@ -26,6 +26,7 @@ var (
 	Latest_latency_measured_per_UE_destination_combo     = make(map[string]uint32)
 	Time_of_last_issued_report_per_UE_destination_combo  = make(map[string]time.Time)
 	SRRFound                                             = false
+	Mu                                                   sync.Mutex
 	Mu1                                                  sync.Mutex
 )
 
@@ -100,7 +101,9 @@ func CapturePackets(interface_name string, file_to_save_captured_packets string)
 			// wg.Wait()
 			return
 		default:
+			Mu.Lock()
 			processPacket(packet)
+			Mu.Unlock()
 		}
 	}
 }
@@ -121,7 +124,7 @@ func CapturePackets(interface_name string, file_to_save_captured_packets string)
 // }
 
 func processPacket(packet gopacket.Packet) {
-	fmt.Println("eneted process packet")
+	fmt.Println("Currently processing a packet!")
 	var outerIPv4, innerIPv4 *layers.IPv4
 	var gtpLayer *layers.GTPv1U
 
