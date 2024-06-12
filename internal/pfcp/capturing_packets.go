@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	Number_of_simultaneous_workers = 1 //fine tune through testing (until the actual delay stabalizes and this measuring is not delaying it!)
+	Number_of_simultaneous_workers = 2 //fine tune through testing (until the actual delay stabalizes and this measuring is not delaying it!)
 )
 
 var (
@@ -87,7 +87,7 @@ func CapturePackets(interface_name string) {
 
 	fmt.Println("--ahmad implemented -- started capturing packets on:", interface_name)
 
-	packetQueue := make(chan gopacket.Packet, 1000)
+	packetQueue := make(chan gopacket.Packet, 600)
 	stopChan := make(chan struct{})
 	var wg sync.WaitGroup
 
@@ -128,7 +128,7 @@ func worker(packetQueue <-chan gopacket.Packet, stopChan <-chan struct{}, wg *sy
 }
 
 func processPacket(packet gopacket.Packet) {
-	fmt.Println("eneted process packet")
+	fmt.Println("I entered processPacket")
 	var outerIPv4, innerIPv4 *layers.IPv4
 	var gtpLayer *layers.GTPv1U
 
@@ -148,8 +148,8 @@ func processPacket(packet gopacket.Packet) {
 	if gtpLayer != nil && innerIPv4 != nil {
 		srcIP := innerIPv4.SrcIP.String()
 		dstIP := innerIPv4.DstIP.String()
-		fmt.Println("dest is:", dstIP)
-		//values will not change all of them can read it at the same time
+		fmt.Println("destination is:", dstIP)
+
 		Mu1.Lock()
 		frequency, exists := QoSflow_ReportedFrequency.Load(dstIP)
 		if !exists {
@@ -181,7 +181,7 @@ func processPacket(packet gopacket.Packet) {
 		}
 		ulThreshold, ok := ulThresholdForThisFlow.(uint32)
 		if !ok {
-			fmt.Println("loaded value is not of type uint32")
+			fmt.Println("Loaded value is not of type uint32")
 			Mu1.Unlock()
 			return
 		}
