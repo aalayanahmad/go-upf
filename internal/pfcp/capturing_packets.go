@@ -15,9 +15,9 @@ import (
 	"github.com/google/gopacket/pcap"
 )
 
-// const (
-// 	Number_of_simultaneous_workers = 15 //fine tune through testing (until the actual delay stabalizes and this measuring is not delaying it!)
-// )
+const (
+	Number_of_simultaneous_workers = 1 //fine tune through testing (until the actual delay stabalizes and this measuring is not delaying it!)
+)
 
 var (
 	//upLink case only
@@ -79,49 +79,50 @@ func CapturePackets(interface_name string, file_to_save_captured_packets string)
 
 	fmt.Println("--ahmad implemented -- started capturing packets on:", interface_name)
 
-	//packetQueue := make(chan gopacket.Packet, 1000)
+	packetQueue := make(chan gopacket.Packet, 1000)
 	stopChan := make(chan struct{})
-	// var wg sync.WaitGroup
+	var wg sync.WaitGroup
 
-	// for i := 0; i < Number_of_simultaneous_workers; i++ {
-	// 	wg.Add(1)
-	// 	go worker(packetQueue, stopChan, &wg)
-	// }
+	for i := 0; i < Number_of_simultaneous_workers; i++ {
+		wg.Add(1)
+		go worker(packetQueue, stopChan, &wg)
+	}
 
 	go func() {
 		<-signalChannel
 		close(stopChan)
+		close(packetQueue)
 	}()
 
 	for packet := range packetSource.Packets() {
 		select {
-		//case packetQueue <- packet:
+		case packetQueue <- packet:
 		case <-stopChan:
-			//close(packetQueue)
-			// wg.Wait()
+			close(packetQueue)
+			wg.Wait()
 			return
-		default:
-			Mu.Lock()
-			processPacket(packet)
-			Mu.Unlock()
+			// 	default:
+			// 		Mu.Lock()
+			// 		processPacket(packet)
+			// 		Mu.Unlock()
+			// 	}
 		}
 	}
 }
-
-// func worker(packetQueue <-chan gopacket.Packet, stopChan <-chan struct{}, wg *sync.WaitGroup) {
-// 	defer wg.Done()
-// 	for {
-// 		select {
-// 		case packet, ok := <-packetQueue:
-// 			if !ok {
-// 				return
-// 			}
-// 			processPacket(packet)
-// 		case <-stopChan:
-// 			return
-// 		}
-// 	}
-// }
+func worker(packetQueue <-chan gopacket.Packet, stopChan <-chan struct{}, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for {
+		select {
+		case packet, ok := <-packetQueue:
+			if !ok {
+				return
+			}
+			processPacket(packet)
+		case <-stopChan:
+			return
+		}
+	}
+}
 
 func processPacket(packet gopacket.Packet) {
 	fmt.Println("Currently processing a packet!")
