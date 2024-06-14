@@ -1706,6 +1706,9 @@ func ipv4_src_and_dest_ips(inner_ipv4_pkt []byte) (src_ip, dst_ip string, err er
 	//dst ip is bytes 16 17 18 19
 	dst_ip = net.IPv4(inner_ipv4_pkt[16], inner_ipv4_pkt[17], inner_ipv4_pkt[18], inner_ipv4_pkt[19]).String()
 
+	fmt.Println("source is:", src_ip)
+	fmt.Println("destination is:", dst_ip)
+
 	return src_ip, dst_ip, nil
 }
 
@@ -1724,5 +1727,5 @@ func determine_qfi(src_ip string, dst_ip string) (qfi uint8) {
 
 // to determine if this packet is an UL packet
 func is_uplink_or_downlink(ip string) bool {
-	return strings.HasPrefix(ip, "10.60.0") || strings.HasPrefix(ip, "10.61.0")
+	return (strings.HasPrefix(ip, "10.60.0") || strings.HasPrefix(ip, "10.61.0"))
 }
