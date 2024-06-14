@@ -1648,7 +1648,7 @@ func (g *Gtp5g) WritePacket(far *gtp5gnl.FAR, qer *gtp5gnl.QER, pkt []byte) erro
 	if far.Param == nil || far.Param.Creation == nil {
 		return errors.New("far param not found")
 	}
-
+	fmt.Println("i am inside WritePacket")
 	qfi := uint8(0)
 	src_ip, dest_ip, header_problem := ipv4_src_and_dest_ips(pkt)
 	if header_problem != nil {
