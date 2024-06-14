@@ -1647,6 +1647,10 @@ func (g *Gtp5g) WritePacket(far *gtp5gnl.FAR, qer *gtp5gnl.QER, pkt []byte) erro
 	if far.Param == nil || far.Param.Creation == nil {
 		return errors.New("far param not found")
 	}
+	
+	src_ip, dest_ip := ipv4_src_and_dest_ips(pkt)
+	qfi := determine_qfi(src_ip, dest_ip)
+
 	hc := far.Param.Creation
 	addr := &net.UDPAddr{
 		IP:   hc.PeerAddr,
@@ -1662,7 +1666,7 @@ func (g *Gtp5g) WritePacket(far *gtp5gnl.FAR, qer *gtp5gnl.QER, pkt []byte) erro
 		msg.Exts = []gtpv1.Encoder{
 			gtpv1.PDUSessionContainer{
 				PDUType:   0,
-				QoSFlowID: qer.QFI,
+				QoSFlowID: qfi,
 			},
 		}
 	}
@@ -1674,4 +1678,48 @@ func (g *Gtp5g) WritePacket(far *gtp5gnl.FAR, qer *gtp5gnl.QER, pkt []byte) erro
 	}
 	_, err = g.link.WriteTo(b, addr)
 	return err
+}
+
+// assuming our packet is ipv4 (TCP) find source and destination
+func ipv4_src_and_dest_ips(inner_ipv4_pkt []byte) (src_ip, dst_ip string, err error) {
+
+	ip_header_length := int(inner_ipv4_pkt[0]&0x0F) * 4
+	pkt_length := len(inner_ipv4_pkt)
+
+	if pkt_length < 20 || pkt_length < ip_header_length {
+		return "", "", fmt.Errorf("ipv4 header is 20 bytes long...")
+	}
+
+	//src ip is bytes 12 13 14 15
+	src_ip = net.IPv4(inner_ipv4_pkt[12], inner_ipv4_pkt[13], inner_ipv4_pkt[14], inner_ipv4_pkt[15]).String()
+	//dst ip is bytes 16 17 18 19
+	dst_ip = net.IPv4(inner_ipv4_pkt[16], inner_ipv4_pkt[17], inner_ipv4_pkt[18], inner_ipv4_pkt[19]).String()
+
+	return src_ip, dst_ip, nil
+}
+
+//based on what you found appropriately, fidn the qfi
+func determine_qfi(src_ip string, dst_ip string) (qfi uint8) {
+	// assume for both UL and DL the QFI will be the same
+	//so packets from 10.60.0.X to 10.100.200.X will have the same QFI as packets from 10.100.200.X to 10.60.0.X
+
+	if (is_uplink(src_ip) && dest_ip == "10.100.200.2") || (is_downlink(dst_ip) && src_ip == "10.100.200.2")  { 
+		qfi := 1
+	}
+	if (is_uplink(src_ip) && dest_ip == "10.100.200.3") || (is_downlink(dst_ip) && src_ip == "10.100.200.3") {  
+		qfi := 2
+	}
+	else{
+		qfi := 0
+	}
+}
+
+//to determine if this packet is an UL packet
+func is_uplink(ip string) bool { 
+	return strings.HasPrefix(ip, "10.60.0") || strings.HasPrefix(ip, "10.61.0")
+}
+
+//to determine if this packet is a DL packet
+func is_downlink(ip string) bool { 
+	return strings.HasPrefix(ip, "10.60.0") || strings.HasPrefix(ip, "10.61.0")
 }
