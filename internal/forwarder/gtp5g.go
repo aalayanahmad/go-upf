@@ -3,6 +3,7 @@ package forwarder
 import (
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -1647,9 +1648,15 @@ func (g *Gtp5g) WritePacket(far *gtp5gnl.FAR, qer *gtp5gnl.QER, pkt []byte) erro
 	if far.Param == nil || far.Param.Creation == nil {
 		return errors.New("far param not found")
 	}
-	
-	src_ip, dest_ip := ipv4_src_and_dest_ips(pkt)
-	qfi := determine_qfi(src_ip, dest_ip)
+
+	qfi := uint8(0)
+	src_ip, dest_ip, header_problem := ipv4_src_and_dest_ips(pkt)
+	if header_problem != nil {
+		// Handle the error if it occurred
+		fmt.Println("uhm:", header_problem)
+	} else {
+		qfi = determine_qfi(src_ip, dest_ip)
+	}
 
 	hc := far.Param.Creation
 	addr := &net.UDPAddr{
@@ -1698,28 +1705,20 @@ func ipv4_src_and_dest_ips(inner_ipv4_pkt []byte) (src_ip, dst_ip string, err er
 	return src_ip, dst_ip, nil
 }
 
-//based on what you found appropriately, fidn the qfi
+// based on what you found appropriately, fidn the qfi
 func determine_qfi(src_ip string, dst_ip string) (qfi uint8) {
 	// assume for both UL and DL the QFI will be the same
 	//so packets from 10.60.0.X to 10.100.200.X will have the same QFI as packets from 10.100.200.X to 10.60.0.X
-
-	if (is_uplink(src_ip) && dest_ip == "10.100.200.2") || (is_downlink(dst_ip) && src_ip == "10.100.200.2")  { 
-		qfi := 1
-	}
-	if (is_uplink(src_ip) && dest_ip == "10.100.200.3") || (is_downlink(dst_ip) && src_ip == "10.100.200.3") {  
-		qfi := 2
-	}
-	else{
-		qfi := 0
+	if (is_uplink_or_downlink(src_ip) && dst_ip == "10.100.200.2") || (is_uplink_or_downlink(dst_ip) && src_ip == "10.100.200.2") {
+		return 1
+	} else if (is_uplink_or_downlink(src_ip) && dst_ip == "10.100.200.3") || (is_uplink_or_downlink(dst_ip) && src_ip == "10.100.200.3") {
+		return 2
+	} else {
+		return 0
 	}
 }
 
-//to determine if this packet is an UL packet
-func is_uplink(ip string) bool { 
-	return strings.HasPrefix(ip, "10.60.0") || strings.HasPrefix(ip, "10.61.0")
-}
-
-//to determine if this packet is a DL packet
-func is_downlink(ip string) bool { 
+// to determine if this packet is an UL packet
+func is_uplink_or_downlink(ip string) bool {
 	return strings.HasPrefix(ip, "10.60.0") || strings.HasPrefix(ip, "10.61.0")
 }
