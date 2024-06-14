@@ -1692,6 +1692,7 @@ func (g *Gtp5g) WritePacket(far *gtp5gnl.FAR, qer *gtp5gnl.QER, pkt []byte) erro
 
 // assuming our packet is ipv4 (TCP) find source and destination
 func ipv4_src_and_dest_ips(inner_ipv4_pkt []byte) (src_ip, dst_ip string, err error) {
+	fmt.Println("i am inside ipv4_src_and_dest_ips")
 
 	ip_header_length := int(inner_ipv4_pkt[0]&0x0F) * 4
 	pkt_length := len(inner_ipv4_pkt)
