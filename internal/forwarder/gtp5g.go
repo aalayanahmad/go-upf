@@ -1656,6 +1656,9 @@ func (g *Gtp5g) WritePacket(far *gtp5gnl.FAR, qer *gtp5gnl.QER, pkt []byte) erro
 		fmt.Println("uhm:", header_problem)
 	} else {
 		qfi = determine_qfi(src_ip, dest_ip)
+		fmt.Println("source is:", src_ip)
+		fmt.Println("destination is:", dest_ip)
+		fmt.Println("qfi must be set to:", qfi)
 	}
 
 	hc := far.Param.Creation
