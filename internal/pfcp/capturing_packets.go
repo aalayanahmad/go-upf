@@ -120,7 +120,7 @@ func worker(packetQueue <-chan gopacket.Packet, stopChan <-chan struct{}, wg *sy
 			if !ok {
 				return
 			}
-			processPacket(packet)
+			go processPacket(packet)
 		case <-stopChan:
 			return
 		}
