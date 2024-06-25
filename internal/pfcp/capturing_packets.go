@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	Number_of_simultaneous_workers = 15 //fine tune through testing (until the actual delay stabalizes and this measuring is not delaying it!)
+	Number_of_simultaneous_workers = 100 //fine tune through testing (until the actual delay stabalizes and this measuring is not delaying it!)
 )
 
 var (
