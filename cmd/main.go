@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/aalayanahmad/go-upf/internal/logger"
-	"github.com/aalayanahmad/go-upf/internal/pfcp"
 	upfapp "github.com/aalayanahmad/go-upf/pkg/app"
 	"github.com/aalayanahmad/go-upf/pkg/factory"
 	logger_util "github.com/free5gc/util/logger"
@@ -64,8 +63,8 @@ func action(cliCtx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	//run packet capturing in a seperate goroutine
-	go pfcp.StartPacketCapture("any", "./capturedPackets.pcap")
+	// //run packet capturing in a seperate goroutine
+	// go pfcp.StartPacketCapture("any", "./capturedPackets.pcap")
 
 	upf.Start()
 	if err := upf.Run(); err != nil {
