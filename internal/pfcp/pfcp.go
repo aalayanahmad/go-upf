@@ -79,35 +79,37 @@ func NewPfcpServer(cfg *factory.Config, driver forwarder.Driver) *PfcpServer {
 	}
 }
 
-func New_values_listener() {
-	go func() {
-		toFillTheReport_Chan := GetValuesToBeReported_Chan()
-		for new_value := range toFillTheReport_Chan {
-			mu.Lock()
-			qfi_value = new_value.QFI
-			monitoring_measurement = new_value.QoSMonitoringMeasurement
-			event_happened_at = new_value.EventTimeStamp
-			start_time = new_value.StartTime
-			mu.Unlock()
-		}
-	}()
-}
+// func New_values_listener() {
+// 	go func() {
+// 		toFillTheReport_Chan := GetValuesToBeReported_Chan()
+// 		for new_value := range toFillTheReport_Chan {
+// 			mu.Lock()
+// 			qfi_value = new_value.QFI
+// 			monitoring_measurement = new_value.QoSMonitoringMeasurement
+// 			event_happened_at = new_value.EventTimeStamp
+// 			start_time = new_value.StartTime
+// 			mu.Unlock()
+// 		}
+// 	}()
+// }
 
-func (s *PfcpServer) NewValuesListener(addr net.Addr, lSeid uint64) {
-	go func() {
-		toFillTheReport_Chan := GetValuesToBeReported_Chan()
-		for new_value := range toFillTheReport_Chan {
-			Mu1.Lock()
-			qfi_value = new_value.QFI
-			monitoring_measurement = new_value.QoSMonitoringMeasurement
-			event_happened_at = new_value.EventTimeStamp
-			start_time = new_value.StartTime
-			fmt.Print("address: ", addr)
-			s.serveSESReport(addr, lSeid, qfi_value, monitoring_measurement, event_happened_at, start_time)
-			Mu1.Unlock()
-		}
-	}()
-}
+// func (s *PfcpServer) NewValuesListener(addr net.Addr, lSeid uint64) {
+// 	go func() {
+// 		toFillTheReport_Chan := GetValuesToBeReported_Chan() // Retrieve the channel
+// 		for new_value := range toFillTheReport_Chan {
+// 			// Launch a new goroutine for each report to be sent concurrently
+// 			go func(new_value ToBeReported) {
+// 				qfi_value := new_value.QFI
+// 				monitoring_measurement := new_value.QoSMonitoringMeasurement
+// 				sent_report_at := new_value.SentReport
+// 				start_time := new_value.StartedReporting
+
+// 				// Send the report concurrently
+// 				s.serveSESReport(addr, lSeid, qfi_value, monitoring_measurement, sent_report_at, start_time)
+// 			}(new_value) // Pass new_value to the goroutine
+// 		}
+// 	}()
+// }
 
 func (s *PfcpServer) main(wg *sync.WaitGroup) {
 	defer func() {
@@ -146,7 +148,7 @@ func (s *PfcpServer) main(wg *sync.WaitGroup) {
 	s.conn = conn
 	wg.Add(1)
 	go s.receiver(wg)
-	// s.NewValuesListener(sendAddr, uint64(1))
+	//go s.NewValuesListener(sendAddr, uint64(1))
 	for {
 		select {
 		case sr := <-s.srCh:

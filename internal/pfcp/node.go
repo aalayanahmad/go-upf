@@ -58,8 +58,8 @@ type QoSControlInfo struct {
 }
 
 var (
-	SotredSrrsToBeUsedByUpf = make(map[uint8][]*QoSControlInfo)
-	SrrMapLock              = sync.RWMutex{}
+	SotredSrrsToBeUsedByUpf sync.Map
+	SRR_Mu                  sync.RWMutex // Add a read-write mutex
 )
 
 func (s *Sess) Close() []report.USAReport {
@@ -276,41 +276,41 @@ func (s *Sess) CreateSRR(req *ie.IE) error {
 	for _, srr_ie := range req.ChildIEs {
 
 		if srr_ie.Type == ie.SRRID {
-			fmt.Println("SRRID")
+			//fmt.Println("SRRID")
 			srr_id, err := srr_ie.SRRID()
 			if err != nil {
-				fmt.Printf("Error getting SRRID: %v\n", err)
+				//fmt.Printf("Error getting SRRID: %v\n", err)
 				return err
 			}
 			id = srr_id
 		}
 
 		if srr_ie.Type == ie.QoSMonitoringPerQoSFlowControlInformation {
-			fmt.Println("QoSMonitoringPerQoSFlowControlInformation")
+			//fmt.Println("QoSMonitoringPerQoSFlowControlInformation")
 			for _, qosControl_ie := range srr_ie.ChildIEs {
-				fmt.Println("children of QoSMonitoringPerQoSFlowControlInformation")
+				//fmt.Println("children of QoSMonitoringPerQoSFlowControlInformation")
 				if qosControl_ie.Type == ie.QFI {
-					fmt.Println("QFI")
+					//fmt.Println("QFI")
 					qfi = qosControl_ie
 				}
 				if qosControl_ie.Type == ie.RequestedQoSMonitoring {
-					fmt.Println("RequestedQoSMonitoring")
+					//fmt.Println("RequestedQoSMonitoring")
 					requested_qos_monitoring = qosControl_ie
 				}
 				if qosControl_ie.Type == ie.ReportingFrequency {
-					fmt.Println("ReportingFrequency")
+					//fmt.Println("ReportingFrequency")
 					reporting_frequency = qosControl_ie
 				}
 				if qosControl_ie.Type == ie.PacketDelayThresholds {
-					fmt.Println("PacketDelayThresholds")
+					//fmt.Println("PacketDelayThresholds")
 					packet_delay_thresholds = qosControl_ie
 				}
 				if qosControl_ie.Type == ie.MinimumWaitTime {
-					fmt.Println("MinimumWaitTime")
+					//fmt.Println("MinimumWaitTime")
 					minimum_wait_time = qosControl_ie
 				}
 				if qosControl_ie.Type == ie.MeasurementPeriod {
-					fmt.Println("MeasurementPeriod")
+					//fmt.Println("MeasurementPeriod")
 					measurement_period = qosControl_ie
 				}
 			}
@@ -393,10 +393,9 @@ func (s *Sess) CreateSRR(req *ie.IE) error {
 		}
 	}
 
-	SrrMapLock.Lock()
-	SotredSrrsToBeUsedByUpf[id] = srrQoSControlInfos
-	SrrMapLock.Unlock()
-
+	SotredSrrsToBeUsedByUpf.Store(id, srrQoSControlInfos)
+	SRR_Mu.Lock()
+	defer SRR_Mu.Unlock()
 	s.SRRIDs[id] = srrQoSControlInfos
 	return nil
 }

@@ -134,12 +134,12 @@ var (
 	mu                     sync.RWMutex
 	qfi_value              uint8
 	monitoring_measurement uint32
-	event_happened_at      time.Time
+	sent_report_at         time.Time
 	start_time             time.Time
 )
 
 // send reprot!!
-func (s *PfcpServer) serveSESReport(addr net.Addr, lSeid uint64, qfi_value uint8, monitoring_measurement uint32, event_happened_at time.Time, start_time time.Time) error {
+func (s *PfcpServer) serveSESReport(addr net.Addr, lSeid uint64, qfi_value uint8, monitoring_measurement uint32, reporting_started time.Time, report_sent time.Time) error {
 	s.log.Infoln("serveSESReport")
 
 	sess, err := s.lnode.Sess(lSeid)
@@ -160,8 +160,8 @@ func (s *PfcpServer) serveSESReport(addr net.Addr, lSeid uint64, qfi_value uint8
 			ie.NewQoSMonitoringReport(
 				ie.NewQFI(qfi_value),
 				ie.NewQoSMonitoringMeasurement(0x0, monitoring_measurement, 0x0, 0x0), //check which bit is for monitoring
-				ie.NewEventTimeStamp(event_happened_at),
-				ie.NewStartTime(start_time),
+				ie.NewEventTimeStamp(reporting_started),
+				ie.NewStartTime(report_sent),
 			),
 		))
 	err = s.sendReqTo(req, addr)

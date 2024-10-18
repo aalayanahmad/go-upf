@@ -1,6 +1,7 @@
 package pfcp
 
 import (
+	"encoding/binary"
 	"fmt"
 	"log"
 	"os"
@@ -16,40 +17,46 @@ import (
 )
 
 const (
-	Number_of_simultaneous_workers = 100 //fine tune through testing (until the actual delay stabalizes and this measuring is not delaying it!)
+	Number_of_simultaneous_workers = 400 //fine tune through testing (until the actual delay stabalizes and this measuring is not delaying it!)
 )
 
 var (
 	//upLink only
-	Time_of_last_arrived_packet_per_UE_destination_combo = make(map[string]time.Time)
-	Start_time_per_UE_destination_combo                  = make(map[string]time.Time)
-	Latest_latency_measured_per_UE_destination_combo     = make(map[string]uint32)
-	Time_of_last_issued_report_per_UE_destination_combo  = make(map[string]time.Time)
-	SRRFound                                             = false
-	Mu1                                                  sync.Mutex
+	Time_of_last_issued_report_per_UE_destination_combo sync.Map
+	SRR_was_Found                                       = false
+	Mu1                                                 sync.Mutex
+	keyLocks                                            sync.Map
 )
 
 type ToBeReported struct {
 	QFI                      uint8
 	QoSMonitoringMeasurement uint32
-	EventTimeStamp           time.Time //change to uint32 later NOT PRESSING
-	StartTime                time.Time //change to uint32
+	SentReport               time.Time //change to uint32 later NOT PRESSING
+	StartedReporting         time.Time //change to uint32
 }
 
-var toBeReported_Chan = make(chan ToBeReported, 1000) //buffer size
+type PacketMonitorResult struct {
+	Monitored  bool
+	Key        string
+	DstIP      string
+	delayValue uint32
+}
+
+var toBeReported_Chan = make(chan ToBeReported, 400) //buffer size
 
 func GetValuesToBeReported_Chan() <-chan ToBeReported { //everytime they change fill this report and buffer it to the channel
 	return toBeReported_Chan
 }
 
-func StartPacketCapture(interface_name string, file_to_save_captured_packets string) {
+// need to make it so that when ue deactivates i kill routine
+func StartPacketCapture(interface_name string) {
 	go func() {
 		for {
 			err := GetQoSFlowMonitoringContent()
 			if err == nil {
-				fmt.Println(" SRR found in StartPacketCapture ")
-				SRRFound = true
-				go CapturePackets(interface_name, file_to_save_captured_packets)
+				//fmt.Println(" SRR found in StartPacketCapture ")
+				SRR_was_Found = true
+				go CapturePackets(interface_name)
 				break
 			} else {
 				fmt.Println("no SRR! error:", err)
@@ -59,7 +66,7 @@ func StartPacketCapture(interface_name string, file_to_save_captured_packets str
 	}()
 }
 
-func CapturePackets(interface_name string, file_to_save_captured_packets string) {
+func CapturePackets(interface_name string) {
 
 	handle, err := pcap.OpenLive(interface_name, 2048, true, pcap.BlockForever)
 	if err != nil {
@@ -110,19 +117,65 @@ func worker(packetQueue <-chan gopacket.Packet, stopChan <-chan struct{}, wg *sy
 		case packet, ok := <-packetQueue:
 			if !ok {
 				return
+			} else if ok && IsThePacketToBeMonitored(packet).Monitored {
+				processPacket(packet, IsThePacketToBeMonitored(packet).Key, IsThePacketToBeMonitored(packet).DstIP, IsThePacketToBeMonitored(packet).delayValue)
 			}
-			processPacket(packet)
 		case <-stopChan:
 			return
 		}
 	}
 }
 
-func processPacket(packet gopacket.Packet) {
-	fmt.Println("eneted process packet")
+func processPacket(packet gopacket.Packet, key string, dstIp string, extracted_delay uint32) {
+	lock := getLockForKey(key)
+	lock.Lock()
+	defer lock.Unlock()
+	qfiVal, perioOrEvent, waitTime, ulThreshold, err := getQoSParameters(dstIp)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	if perioOrEvent == uint8(1) { //is it event triggered
+		//if first packet add start time as time NOW
+		lastReportedTime, exists := Time_of_last_issued_report_per_UE_destination_combo.Load(key)
+		lastReportedTimeTyped := lastReportedTime.(time.Time)
+		if !exists {
+			started_reporting := time.Now()
+			if extracted_delay > ulThreshold {
+				will_send_report := time.Now()
+				Time_of_last_issued_report_per_UE_destination_combo.Store(key, will_send_report)
+				newValuesToFill := ToBeReported{
+					QFI:                      qfiVal,
+					QoSMonitoringMeasurement: extracted_delay,
+					SentReport:               started_reporting,
+					StartedReporting:         will_send_report,
+				}
+				toBeReported_Chan <- newValuesToFill
+			}
+
+		} else if exists && time.Since(lastReportedTimeTyped) >= waitTime {
+			started_reporting := time.Now()
+			if extracted_delay > ulThreshold {
+				will_send_report := time.Now()
+				Time_of_last_issued_report_per_UE_destination_combo.Store(key, will_send_report)
+				newValuesToFill := ToBeReported{
+					QFI:                      qfiVal,
+					QoSMonitoringMeasurement: extracted_delay,
+					SentReport:               started_reporting,
+					StartedReporting:         will_send_report,
+				}
+				toBeReported_Chan <- newValuesToFill
+
+			}
+		}
+
+	}
+}
+
+func IsThePacketToBeMonitored(packet gopacket.Packet) *PacketMonitorResult {
 	var outerIPv4, innerIPv4 *layers.IPv4
 	var gtpLayer *layers.GTPv1U
-
+	var result PacketMonitorResult
 	for _, layer := range packet.Layers() {
 		switch layer := layer.(type) {
 		case *layers.IPv4:
@@ -135,126 +188,94 @@ func processPacket(packet gopacket.Packet) {
 			gtpLayer = layer
 		}
 	}
-
+	// Check if GTP layer exists and has a payload
 	if gtpLayer != nil && innerIPv4 != nil {
-		srcIP := innerIPv4.SrcIP.String()
-		dstIP := innerIPv4.DstIP.String()
-		fmt.Println("dest is:", dstIP)
-		//values will not change all of them can read it at the same time
-		Mu1.Lock()
-		frequency, exists := QoSflow_ReportedFrequency.Load(dstIP)
-		if !exists {
-			fmt.Println("no reported frequency for this flow")
-			Mu1.Unlock()
-			return
-		}
+		if len(gtpLayer.Payload) > 0 {
+			tcpLayer := layers.TCP{}
+			if err := tcpLayer.DecodeFromBytes(gtpLayer.Payload, gopacket.NilDecodeFeedback); err == nil {
+				if len(tcpLayer.Payload) >= 4 {
+					// extract delay
+					data := tcpLayer.Payload[:4]
+					var extracted_latency uint32
+					extracted_latency = binary.BigEndian.Uint32(data)
+					fmt.Printf("Extracted integer from TCP payload: %d\n", extracted_latency)
 
-		perioOrEvent, ok := frequency.(uint8)
-		fmt.Println(frequency)
-		if !ok {
-			fmt.Println("not of type uint8 or does not exist")
-			Mu1.Unlock()
-			return
-		}
-		timeToWaitBeforeNextReport, exists := QoSflow_MinimumWaitTime.Load(dstIP)
-		if !exists {
-			fmt.Println("no time to wait before next report for this flow")
-			Mu1.Unlock()
-			return
-		}
-		timeToWaitBeforeNextReportDuration, ok := timeToWaitBeforeNextReport.(time.Duration)
-
-		ulThresholdForThisFlow, exists := QoSflow_UplinkPacketDelayThresholds.Load(dstIP)
-		if !exists {
-			fmt.Println("No values for this flow")
-			Mu1.Unlock()
-			return
-		}
-		ulThreshold, ok := ulThresholdForThisFlow.(uint32)
-		if !ok {
-			fmt.Println("loaded value is not of type uint32")
-			Mu1.Unlock()
-			return
-		}
-		fmt.Println("here")
-		if isInRange(srcIP) { //source IP is one of the UEs
-			fmt.Println("there is an UL packet")
-			if perioOrEvent == uint8(1) { //is it event triggered
-				key := srcIP + "->" + dstIP //store required values for reports for each src dest pair
-
-				//if first packet add start time as time NOW
-				if _, exists := Start_time_per_UE_destination_combo[key]; !exists {
-					Start_time_per_UE_destination_combo[key] = time.Now() //only when the monitoring starts
-					Time_of_last_arrived_packet_per_UE_destination_combo[key] = time.Now()
-				}
-				//else
-				currentTime := time.Now()
-				//save the last time a packet from this source and dest arrived REDUNDANT
-				lastArrivalTimeForThisSrcAndDest, exists := Time_of_last_arrived_packet_per_UE_destination_combo[key]
-
-				if !exists {
-					//if there is none add
-					lastArrivalTimeForThisSrcAndDest = currentTime
-				}
-
-				timeSinceLastReport, exists := Time_of_last_issued_report_per_UE_destination_combo[key]
-				//no report was issued so no even was triggered but it is not the first pccket
-				if lastArrivalTimeForThisSrcAndDest != currentTime && !exists {
-					latency := currentTime.Sub(lastArrivalTimeForThisSrcAndDest)
-					latencyInMs := uint32(latency.Milliseconds())
-					if latencyInMs > ulThreshold {
-						var qfiVal uint8
-						if dstIP == "10.100.200.2" {
-							qfiVal = 1
+					if gtpLayer != nil && outerIPv4 != nil {
+						srcIP := outerIPv4.SrcIP.String()
+						dstIP := outerIPv4.DstIP.String()
+						key := srcIP + "->" + dstIP
+						// Check if the source IP is in the desired range and the destination IP matches
+						if strings.HasPrefix(srcIP, "10.60.0") &&
+							(dstIP == "10.100.200.12" || dstIP == "10.100.200.16") {
+							result = PacketMonitorResult{
+								Monitored:  true,
+								Key:        key,
+								DstIP:      dstIP,
+								delayValue: extracted_latency,
+							}
 						}
-
-						if dstIP == "10.100.200.3" {
-							qfiVal = 2
-						}
-						Time_of_last_issued_report_per_UE_destination_combo[key] = currentTime
-						newValuesToFill := ToBeReported{
-							QFI:                      qfiVal,
-							QoSMonitoringMeasurement: latencyInMs,
-							EventTimeStamp:           currentTime,
-							StartTime:                Start_time_per_UE_destination_combo[key],
-						}
-						toBeReported_Chan <- newValuesToFill
 					}
-					Latest_latency_measured_per_UE_destination_combo[key] = latencyInMs
-					fmt.Printf("Key: %s, Latency: %v ms\n", key, latencyInMs)
-					//a previous report was issued
-				} else if lastArrivalTimeForThisSrcAndDest != currentTime && exists {
-					if time.Since(timeSinceLastReport) >= timeToWaitBeforeNextReportDuration {
-						latency := currentTime.Sub(lastArrivalTimeForThisSrcAndDest)
-						latency_in_ms := uint32(latency.Milliseconds())
-						if latency_in_ms > ulThreshold {
-							var qfi_val uint8
-							if dstIP == "10.100.200.2" {
-								qfi_val = 1
-							}
 
-							if dstIP == "10.100.200.3" {
-								qfi_val = 2
-							}
-							new_values_to_fill := ToBeReported{
-								QFI:                      qfi_val,
-								QoSMonitoringMeasurement: latency_in_ms,
-								EventTimeStamp:           currentTime,
-								StartTime:                Start_time_per_UE_destination_combo[key],
-							}
-							toBeReported_Chan <- new_values_to_fill
-						}
-						Latest_latency_measured_per_UE_destination_combo[key] = latency_in_ms
-						fmt.Printf("Key: %s, Latency: %v ms\n", key, latency_in_ms)
-					}
+				} else {
+					fmt.Println("TCP payload does not have enough data; skipping.")
 				}
-				Time_of_last_arrived_packet_per_UE_destination_combo[key] = time.Now()
+			} else {
+				fmt.Println("Failed to decode TCP layer:", err)
 			}
 		}
-		Mu1.Unlock()
+
+		return &result
 	}
+	return nil
 }
 
-func isInRange(ip string) bool { //if its uplink
-	return strings.HasPrefix(ip, "10.60.0") || strings.HasPrefix(ip, "10.61.0")
+func getQoSParameters(dstIp string) (uint8, uint8, time.Duration, uint32, error) {
+
+	var qfiVal uint8
+	if dstIp == "10.100.200.12" {
+		qfiVal = 1
+	} else if dstIp == "10.100.200.16" {
+		qfiVal = 2
+	} else {
+		return 0, 0, 0, 0, fmt.Errorf("invalid destination IP")
+	}
+
+	frequency, exists := QoSflow_ReportedFrequency.Load(dstIp)
+	if !exists {
+		return 0, 0, 0, 0, fmt.Errorf("no reported frequency for this flow")
+	}
+
+	perioOrEvent, ok := frequency.(uint8)
+	if !ok {
+		return 0, 0, 0, 0, fmt.Errorf("not of type uint8 for frequency")
+	}
+
+	timeToWaitBeforeNextReport, exists := QoSflow_MinimumWaitTime.Load(dstIp)
+	if !exists {
+		return 0, 0, 0, 0, fmt.Errorf("no time to wait before next report for this flow")
+	}
+
+	timeToWaitBeforeNextReportDuration, ok := timeToWaitBeforeNextReport.(time.Duration)
+	if !ok {
+		return 0, 0, 0, 0, fmt.Errorf("time to wait is not of type time.Duration")
+	}
+
+	// Read uplink packet delay threshold
+	ulThresholdForThisFlow, exists := QoSflow_UplinkPacketDelayThresholds.Load(dstIp)
+	if !exists {
+		return 0, 0, 0, 0, fmt.Errorf("no uplink packet delay threshold for this flow")
+	}
+
+	ulThreshold, ok := ulThresholdForThisFlow.(uint32)
+	if !ok {
+		return 0, 0, 0, 0, fmt.Errorf("loaded value is not of type uint32 for uplink threshold")
+	}
+
+	// Return the QFI, frequency, wait time, and uplink threshold
+	return qfiVal, perioOrEvent, timeToWaitBeforeNextReportDuration, ulThreshold, nil
+}
+
+func getLockForKey(key string) *sync.Mutex {
+	lock, _ := keyLocks.LoadOrStore(key, &sync.Mutex{})
+	return lock.(*sync.Mutex)
 }
