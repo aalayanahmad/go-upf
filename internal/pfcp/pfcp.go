@@ -93,23 +93,23 @@ func NewPfcpServer(cfg *factory.Config, driver forwarder.Driver) *PfcpServer {
 // 	}()
 // }
 
-// func (s *PfcpServer) NewValuesListener(addr net.Addr, lSeid uint64) {
-// 	go func() {
-// 		toFillTheReport_Chan := GetValuesToBeReported_Chan() // Retrieve the channel
-// 		for new_value := range toFillTheReport_Chan {
-// 			// Launch a new goroutine for each report to be sent concurrently
-// 			go func(new_value ToBeReported) {
-// 				qfi_value := new_value.QFI
-// 				monitoring_measurement := new_value.QoSMonitoringMeasurement
-// 				sent_report_at := new_value.SentReport
-// 				start_time := new_value.StartedReporting
+func (s *PfcpServer) NewValuesListener(addr net.Addr, lSeid uint64) {
+	go func() {
+		toFillTheReport_Chan := GetValuesToBeReported_Chan() // Retrieve the channel
+		for new_value := range toFillTheReport_Chan {
+			// Launch a new goroutine for each report to be sent concurrently
+			go func(new_value ToBeReported) {
+				qfi_value := new_value.QFI
+				monitoring_measurement := new_value.QoSMonitoringMeasurement
+				sent_report_at := new_value.SentReport
+				start_time := new_value.StartedReporting
 
-// 				// Send the report concurrently
-// 				s.serveSESReport(addr, lSeid, qfi_value, monitoring_measurement, sent_report_at, start_time)
-// 			}(new_value) // Pass new_value to the goroutine
-// 		}
-// 	}()
-// }
+				// Send the report concurrently
+				s.serveSESReport(addr, lSeid, qfi_value, monitoring_measurement, sent_report_at, start_time)
+			}(new_value) // Pass new_value to the goroutine
+		}
+	}()
+}
 
 func (s *PfcpServer) main(wg *sync.WaitGroup) {
 	defer func() {
@@ -132,14 +132,14 @@ func (s *PfcpServer) main(wg *sync.WaitGroup) {
 		s.log.Errorf("Resolve err: %+v", err)
 		return
 	}
-	// address := "10.100.200.12"
-	// port := 8805
-	// sendUDPAddr := fmt.Sprintf("%s:%d", address, port)
-	// sendAddr, err := net.ResolveUDPAddr("udp4", sendUDPAddr)
-	// if err != nil {
-	// 	s.log.Errorf("Resolve send address err: %+v", err)
-	// 	return
-	// }
+	address := "10.100.200.12"
+	port := 8805
+	sendUDPAddr := fmt.Sprintf("%s:%d", address, port)
+	sendAddr, err := net.ResolveUDPAddr("udp4", sendUDPAddr)
+	if err != nil {
+		s.log.Errorf("Resolve send address err: %+v", err)
+		return
+	}
 	conn, err := net.ListenUDP("udp4", laddr)
 	if err != nil {
 		s.log.Errorf("Listen err: %+v", err)
@@ -148,7 +148,7 @@ func (s *PfcpServer) main(wg *sync.WaitGroup) {
 	s.conn = conn
 	wg.Add(1)
 	go s.receiver(wg)
-	//go s.NewValuesListener(sendAddr, uint64(1))
+	go s.NewValuesListener(sendAddr, uint64(1))
 	for {
 		select {
 		case sr := <-s.srCh:
