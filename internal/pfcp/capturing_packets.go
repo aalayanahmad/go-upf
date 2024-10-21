@@ -190,43 +190,40 @@ func IsThePacketToBeMonitored(packet gopacket.Packet) *PacketMonitorResult {
 	}
 	// Check if GTP layer exists and has a payload
 	if gtpLayer != nil && innerIPv4 != nil {
-		if len(gtpLayer.Payload) > 0 {
-			tcpLayer := layers.TCP{}
-			if err := tcpLayer.DecodeFromBytes(gtpLayer.Payload, gopacket.NilDecodeFeedback); err == nil {
-				if len(tcpLayer.Payload) >= 4 {
-					// extract delay
-					data := tcpLayer.Payload[:4]
-					var extracted_latency uint32
-					extracted_latency = binary.BigEndian.Uint32(data)
-					fmt.Printf("Extracted integer from TCP payload: %d\n", extracted_latency)
+		srcIP := outerIPv4.SrcIP.String()
+		dstIP := outerIPv4.DstIP.String()
+		key := srcIP + "->" + dstIP
+		// Check if the source IP is in the desired range and the destination IP matches
+		if strings.HasPrefix(srcIP, "10.60.0") &&
+			(dstIP == "10.100.200.12" || dstIP == "10.100.200.16") &&
+			len(gtpLayer.Payload) > 0 {
 
-					if gtpLayer != nil && outerIPv4 != nil {
-						srcIP := outerIPv4.SrcIP.String()
-						dstIP := outerIPv4.DstIP.String()
-						key := srcIP + "->" + dstIP
-						// Check if the source IP is in the desired range and the destination IP matches
-						if strings.HasPrefix(srcIP, "10.60.0") &&
-							(dstIP == "10.100.200.12" || dstIP == "10.100.200.16") {
-							result = PacketMonitorResult{
-								Monitored:  true,
-								Key:        key,
-								DstIP:      dstIP,
-								delayValue: extracted_latency,
-							}
+			for _, ext := range gtpLayer.GTPExtensionHeaders {
+				if ext.Type == 0x85 { // PDU Session container type
+					pduSessionContainer := ext.Content
+					if (pduSessionContainer[0]>>3)&0x01 == 1 && ((pduSessionContainer[0]>>1)&0x01 == 1) { // QMP is set to 1 (is a monitorig packet) and UL delay ind is set to 1
+						ulDelayResult := binary.BigEndian.Uint32(pduSessionContainer[26:30]) //ul delay result is at bytes 26 27 28 29 and it is big endian
+						fmt.Printf("Extracted UL Delay Result from PDU Session Container: %d\n", ulDelayResult)
+						result = PacketMonitorResult{
+							Monitored:  true,
+							Key:        key,
+							DstIP:      dstIP,
+							delayValue: ulDelayResult,
+						}
+					} else {
+						result = PacketMonitorResult{
+							Monitored:  false,
+							Key:        key,
+							DstIP:      dstIP,
+							delayValue: 0,
 						}
 					}
-
-				} else {
-					fmt.Println("TCP payload does not have enough data; skipping.")
 				}
-			} else {
-				fmt.Println("Failed to decode TCP layer:", err)
 			}
 		}
-
-		return &result
 	}
-	return nil
+
+	return &result
 }
 
 func getQoSParameters(dstIp string) (uint8, uint8, time.Duration, uint32, error) {
