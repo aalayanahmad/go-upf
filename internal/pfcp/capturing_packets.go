@@ -199,13 +199,14 @@ func IsThePacketToBeMonitored(packet gopacket.Packet) *PacketMonitorResult {
 		fmt.Println("here1")
 		// Check if the source IP is in the desired range and the destination IP matches
 		if strings.HasPrefix(srcIP, "10.60.0") &&
-			(dstIP == "10.100.200.12" || dstIP == "10.100.200.16") &&
-			len(gtpLayer.Payload) > 0 {
+			(dstIP == "10.100.200.12" || dstIP == "10.100.200.16") {
 			fmt.Println("here2")
 			for _, ext := range gtpLayer.GTPExtensionHeaders {
 				if ext.Type == 0x85 { // PDU Session container type
+					fmt.Println("here3")
 					pduSessionContainer := ext.Content
 					if (pduSessionContainer[0]>>3)&0x01 == 1 && ((pduSessionContainer[0]>>1)&0x01 == 1) { // QMP is set to 1 (is a monitorig packet) and UL delay ind is set to 1
+						fmt.Println("here4")
 						ulDelayResult := binary.BigEndian.Uint32(pduSessionContainer[26:30]) //ul delay result is at bytes 26 27 28 29 and it is big endian
 						fmt.Printf("Extracted UL Delay Result from PDU Session Container: %d\n", ulDelayResult)
 						result = PacketMonitorResult{
