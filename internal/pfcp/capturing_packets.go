@@ -193,8 +193,8 @@ func IsThePacketToBeMonitored(packet gopacket.Packet) *PacketMonitorResult {
 	}
 	// Check if GTP layer exists and has a payload
 	if gtpLayer != nil && innerIPv4 != nil {
-		srcIP := outerIPv4.SrcIP.String()
-		dstIP := outerIPv4.DstIP.String()
+		srcIP := innerIPv4.SrcIP.String()
+		dstIP := innerIPv4.DstIP.String()
 		key := srcIP + "->" + dstIP
 		fmt.Println("here1")
 		// Check if the source IP is in the desired range and the destination IP matches
