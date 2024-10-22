@@ -212,7 +212,7 @@ func IsThePacketToBeMonitored(packet gopacket.Packet) *PacketMonitorResult {
 					if (pduSessionContainer[0]>>3)&0x01 == 1 && ((pduSessionContainer[0]>>1)&0x01 == 1) { // QMP is set to 1 (is a monitorig packet) and UL delay ind is set to 1
 						//fmt.Println("here4")
 						ulDelayResult := binary.BigEndian.Uint32(pduSessionContainer[26:30]) //ul delay result is at bytes 26 27 28 29 and it is big endian
-						fmt.Printf("Extracted UL Delay Result from PDU Session Container: %d\n", ulDelayResult)
+						//fmt.Printf("Extracted UL Delay Result from PDU Session Container: %d\n", ulDelayResult)
 						result = PacketMonitorResult{
 							Monitored:  true,
 							Key:        key,
