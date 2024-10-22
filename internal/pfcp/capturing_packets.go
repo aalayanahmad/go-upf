@@ -117,8 +117,11 @@ func worker(packetQueue <-chan gopacket.Packet, stopChan <-chan struct{}, wg *sy
 		case packet, ok := <-packetQueue:
 			if !ok {
 				return
-			} else if ok && IsThePacketToBeMonitored(packet).Monitored {
+			} else if IsThePacketToBeMonitored(packet).Monitored {
+				fmt.Println("for monitoring")
 				processPacket(packet, IsThePacketToBeMonitored(packet).Key, IsThePacketToBeMonitored(packet).DstIP, IsThePacketToBeMonitored(packet).delayValue)
+			} else {
+				fmt.Println("not for monitoring")
 			}
 		case <-stopChan:
 			return
@@ -193,11 +196,12 @@ func IsThePacketToBeMonitored(packet gopacket.Packet) *PacketMonitorResult {
 		srcIP := outerIPv4.SrcIP.String()
 		dstIP := outerIPv4.DstIP.String()
 		key := srcIP + "->" + dstIP
+		fmt.Println("here1")
 		// Check if the source IP is in the desired range and the destination IP matches
 		if strings.HasPrefix(srcIP, "10.60.0") &&
 			(dstIP == "10.100.200.12" || dstIP == "10.100.200.16") &&
 			len(gtpLayer.Payload) > 0 {
-
+			fmt.Println("here2")
 			for _, ext := range gtpLayer.GTPExtensionHeaders {
 				if ext.Type == 0x85 { // PDU Session container type
 					pduSessionContainer := ext.Content
