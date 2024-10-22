@@ -121,7 +121,7 @@ func worker(packetQueue <-chan gopacket.Packet, stopChan <-chan struct{}, wg *sy
 			monitorInfo := IsThePacketToBeMonitored(packet)
 			if monitorInfo.Monitored {
 				fmt.Println("for monitoring")
-				processPacket(packet,onitorInfo.Key, onitorInfo.DstIP, onitorInfo.delayValue)
+				processPacket(packet, monitorInfo.Key, monitorInfo.DstIP, monitorInfo.delayValue)
 			} else {
 				fmt.Println("not for monitoring")
 			}
@@ -143,7 +143,7 @@ func processPacket(packet gopacket.Packet, key string, dstIp string, extracted_d
 	if perioOrEvent == uint8(1) { //is it event triggered
 		//if first packet add start time as time NOW
 		lastReportedTime, exists := Time_of_last_issued_report_per_UE_destination_combo.Load(key)
-		if !exists || lastReportedTime == nil  {
+		if !exists || lastReportedTime == nil {
 			started_reporting := time.Now()
 			if extracted_delay > ulThreshold {
 				will_send_report := time.Now()
@@ -157,9 +157,9 @@ func processPacket(packet gopacket.Packet, key string, dstIp string, extracted_d
 				toBeReported_Chan <- newValuesToFill
 			}
 
-		} else  {
+		} else {
 			lastReportedTimeTyped := lastReportedTime.(time.Time)
-			if time.Since(lastReportedTimeTyped) >= waitTime {}
+			if time.Since(lastReportedTimeTyped) >= waitTime {
 				started_reporting := time.Now()
 				if extracted_delay > ulThreshold {
 					will_send_report := time.Now()
@@ -170,7 +170,8 @@ func processPacket(packet gopacket.Packet, key string, dstIp string, extracted_d
 						SentReport:               started_reporting,
 						StartedReporting:         will_send_report,
 					}
-					toBeReported_Chan <- newValuesToFill}
+					toBeReported_Chan <- newValuesToFill
+				}
 
 			}
 		}
