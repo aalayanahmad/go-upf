@@ -132,7 +132,7 @@ func (s *PfcpServer) main(wg *sync.WaitGroup) {
 		s.log.Errorf("Resolve err: %+v", err)
 		return
 	}
-	address := "10.100.200.12"
+	address := "10.100.200.9" //smf ip
 	port := 8805
 	sendUDPAddr := fmt.Sprintf("%s:%d", address, port)
 	sendAddr, err := net.ResolveUDPAddr("udp4", sendUDPAddr)
