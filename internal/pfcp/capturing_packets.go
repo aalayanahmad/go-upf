@@ -117,9 +117,11 @@ func worker(packetQueue <-chan gopacket.Packet, stopChan <-chan struct{}, wg *sy
 		case packet, ok := <-packetQueue:
 			if !ok {
 				return
-			} else if IsThePacketToBeMonitored(packet).Monitored {
+			}
+			monitorInfo := IsThePacketToBeMonitored(packet)
+			if monitorInfo.Monitored {
 				fmt.Println("for monitoring")
-				processPacket(packet, IsThePacketToBeMonitored(packet).Key, IsThePacketToBeMonitored(packet).DstIP, IsThePacketToBeMonitored(packet).delayValue)
+				processPacket(packet,onitorInfo.Key, onitorInfo.DstIP, onitorInfo.delayValue)
 			} else {
 				fmt.Println("not for monitoring")
 			}
@@ -141,8 +143,7 @@ func processPacket(packet gopacket.Packet, key string, dstIp string, extracted_d
 	if perioOrEvent == uint8(1) { //is it event triggered
 		//if first packet add start time as time NOW
 		lastReportedTime, exists := Time_of_last_issued_report_per_UE_destination_combo.Load(key)
-		lastReportedTimeTyped := lastReportedTime.(time.Time)
-		if !exists {
+		if !exists || lastReportedTime == nil  {
 			started_reporting := time.Now()
 			if extracted_delay > ulThreshold {
 				will_send_report := time.Now()
@@ -156,18 +157,20 @@ func processPacket(packet gopacket.Packet, key string, dstIp string, extracted_d
 				toBeReported_Chan <- newValuesToFill
 			}
 
-		} else if exists && time.Since(lastReportedTimeTyped) >= waitTime {
-			started_reporting := time.Now()
-			if extracted_delay > ulThreshold {
-				will_send_report := time.Now()
-				Time_of_last_issued_report_per_UE_destination_combo.Store(key, will_send_report)
-				newValuesToFill := ToBeReported{
-					QFI:                      qfiVal,
-					QoSMonitoringMeasurement: extracted_delay,
-					SentReport:               started_reporting,
-					StartedReporting:         will_send_report,
-				}
-				toBeReported_Chan <- newValuesToFill
+		} else  {
+			lastReportedTimeTyped := lastReportedTime.(time.Time)
+			if time.Since(lastReportedTimeTyped) >= waitTime {}
+				started_reporting := time.Now()
+				if extracted_delay > ulThreshold {
+					will_send_report := time.Now()
+					Time_of_last_issued_report_per_UE_destination_combo.Store(key, will_send_report)
+					newValuesToFill := ToBeReported{
+						QFI:                      qfiVal,
+						QoSMonitoringMeasurement: extracted_delay,
+						SentReport:               started_reporting,
+						StartedReporting:         will_send_report,
+					}
+					toBeReported_Chan <- newValuesToFill}
 
 			}
 		}
