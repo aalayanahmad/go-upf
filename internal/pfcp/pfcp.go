@@ -58,6 +58,7 @@ type PfcpServer struct {
 	txTrans      map[string]*TxTransaction // key: RemoteAddr-Sequence
 	rxTrans      map[string]*RxTransaction // key: RemoteAddr-Sequence
 	txSeq        uint32
+	trxMu        sync.Mutex
 	log          *logrus.Entry
 }
 
@@ -312,7 +313,8 @@ func (s *PfcpServer) sendReqTo(msg message.Message, addr net.Addr) error {
 	if !isRequest(msg) {
 		return errors.Errorf("sendReqTo: invalid req type(%d)", msg.MessageType())
 	}
-
+	s.trxMu.Lock()
+	defer s.trxMu.Unlock()
 	txtr := NewTxTransaction(s, addr, s.txSeq)
 	s.txSeq++
 	s.txTrans[txtr.id] = txtr
