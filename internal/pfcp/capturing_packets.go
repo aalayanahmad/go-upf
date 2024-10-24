@@ -42,7 +42,7 @@ type PacketMonitorResult struct {
 	delayValue uint32
 }
 
-var toBeReported_Chan = make(chan ToBeReported, 400) //buffer size
+var toBeReported_Chan = make(chan ToBeReported, 2000) //buffer size
 
 func GetValuesToBeReported_Chan() <-chan ToBeReported { //everytime they change fill this report and buffer it to the channel
 	return toBeReported_Chan
@@ -68,7 +68,7 @@ func StartPacketCapture(interface_name string) {
 
 func CapturePackets(interface_name string) {
 
-	handle, err := pcap.OpenLive(interface_name, 2048, true, pcap.BlockForever)
+	handle, err := pcap.OpenLive(interface_name, 1024, true, pcap.BlockForever)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func CapturePackets(interface_name string) {
 
 	fmt.Println("--ahmad implemented -- started capturing packets on:", interface_name)
 
-	packetQueue := make(chan gopacket.Packet, 1000)
+	packetQueue := make(chan gopacket.Packet, 2000)
 	stopChan := make(chan struct{})
 	var wg sync.WaitGroup
 
@@ -97,6 +97,9 @@ func CapturePackets(interface_name string) {
 	go func() {
 		<-signalChannel
 		close(stopChan)
+		wg.Wait()
+		close(toBeReported_Chan)
+
 	}()
 
 	for packet := range packetSource.Packets() {
