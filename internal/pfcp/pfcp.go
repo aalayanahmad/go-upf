@@ -96,7 +96,7 @@ func NewPfcpServer(cfg *factory.Config, driver forwarder.Driver) *PfcpServer {
 
 func (s *PfcpServer) NewValuesListener(addr net.Addr, lSeid uint64) {
 	toFillTheReport_Chan := GetValuesToBeReported_Chan() // Retrieve the channel
-	numWorkers := 500                                    // Number of workers to limit concurrency
+	numWorkers := 700                                    // Number of workers to limit concurrency
 	for i := 0; i < numWorkers; i++ {
 		go func() {
 			for new_value := range toFillTheReport_Chan {
@@ -191,7 +191,9 @@ func (s *PfcpServer) main(wg *sync.WaitGroup) {
 				}
 			} else if isResponse(msg) {
 				s.log.Tracef("receive rsp pkt from %s", trID)
+				s.trxMu.Lock()
 				tx, ok := s.txTrans[trID]
+				s.trxMu.Unlock()
 				if !ok {
 					s.log.Debugf("rcvCh: No txtr[%s] found for rsp", trID)
 					continue
@@ -206,7 +208,9 @@ func (s *PfcpServer) main(wg *sync.WaitGroup) {
 		case trTo := <-s.trToCh:
 			s.log.Tracef("receive tr timeout (%v) from trToCh", trTo)
 			if trTo.TrType == TX {
+				s.trxMu.Lock()
 				tx, ok := s.txTrans[trTo.TrID]
+				s.trxMu.Unlock()
 				if !ok {
 					s.log.Warnf("trToCh: txtr[%s] not found", trTo.TrID)
 					continue
